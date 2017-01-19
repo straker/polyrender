@@ -7,7 +7,8 @@
  */
 
 var fs = require('fs');
-var htmlparser = require("htmlparser2");
+var htmlparser = require('htmlparser2');
+var cheerio = require('cheerio');
 
 // dynamic attributes end in a $
 var dynamicAttributeBindingRegex = /\$$/;
@@ -180,16 +181,20 @@ var polyrender = {
      *   </script>
      * </dom-module>
      */
-    function lookForTemplate(error, dom, domModuleFound) {
+    function lookForTemplate(error, dom) {
       for (var i = 0, el; (el = dom[i]); i++) {
         if (el.name === 'dom-module' && el.type === 'tag') {
           for (var j = 0, childEl; (childEl = el.children[j]); j++) {
             if (childEl.name === 'template' && childEl.type === 'tag') {
               parseDomObject(childEl.children, 0);
+              return;
             }
           }
         }
       }
+
+      // if no dom-module or template tag is found, just use whatever is passed in
+      parseDomObject(dom, 0);
     }
 
     /**
@@ -269,6 +274,36 @@ var polyrender = {
             })(this) + '`;
           }
         }
+
+        // handle content tags
+        else if (el.name === 'content') {
+          var selectedDomSource = '';
+
+          if (el.attribs && el.attribs.select) {
+            selectedDomSource = `// use the select attribute to find the child nodes to use
+            var $ = scope.cheerio.load(context.parentChildrenSource);
+            var $elements = $('${el.attribs.select}');
+            var elements = [];
+
+            for (var i = 0; i < $elements.length; i++) {
+              elements.push($elements[i]);
+            }
+
+            source = scope.getOuterHTML(elements);`;
+          }
+
+          str += `' + (function(scope) {
+            var source = context.parentChildrenSource;
+            ${(selectedDomSource ? selectedDomSource : '')}
+
+            var template = scope.compile(source, true);
+            var dom = template(context);
+
+            // remove start and end brackets []
+            return dom.substring(1, dom.length - 1);
+          })(this) + '`;
+        }
+
         else {
           str += `{`;
 
@@ -311,13 +346,28 @@ var polyrender = {
                   // transfer attributes from parent to child context
                   var attribueContext = `{${parseAttributes(el.attribs, true)}}`;
 
+                  // save child nodes for any <content> tags
+                  // remove circular references from dom object so we can stringify the result
+                  var children = JSON.stringify( el.children, function( key, value) {
+                    if( key == 'parent' || key == 'prev' || key == 'next') {
+                      return null;
+                    }
+                    else {
+                      return value;
+                    }
+                  });
+
                   // remove any string concatenation since this doesn't get compiled
                   attribueContext = attribueContext.replace(/' \+ '/g, '').replace(/"' \+ /g, '').replace(/ \+ '"/g, '');
 
                   str += `' + (function(scope) {
+                    var parentChildrenSource = scope.getOuterHTML(${children});
                     var template = scope.compile(\`${element.source}\`, true);
 
-                    var newContext = Object.assign(${attribueContext}, context, ${element.context});
+                    // web component context is created from the attributes, the passed in context, and
+                    // the context supplied at registation. child nodes are also passed for use in
+                    // <content> tags
+                    var newContext = Object.assign(${attribueContext}, context, ${element.context}, {parentChildrenSource: parentChildrenSource});
                     var dom = template(newContext);
 
                     // remove start and end brackets []
@@ -364,10 +414,11 @@ var polyrender = {
     parser.write(source);
     parser.end();
 
-    console.log('\n\ncode:', code);
+    // console.log('\n\ncode:', code);
     return eval(code).bind({
       getOuterHTML: htmlparser.DomUtils.getOuterHTML,
-      compile: polyrender.compile
+      compile: polyrender.compile,
+      cheerio: cheerio
     });
   },
 
@@ -403,13 +454,15 @@ var polyrender = {
   }
 };
 
-polyrender.registerElement('my-element', '<dom-module><template><button><content></content></button></template></dom-module>');
+polyrender.registerElement('my-element', '<dom-module><template><button><content select=".content,p"></content></button></template></dom-module>');
 
 var template = polyrender.compile(`<dom-module>
   <template>
     <div>
       <my-element>
-        Hello World
+        <div>Hello World</div>
+        <div class="content">foobar</div>
+        <p>Hello</p>
       </my-element>
     </div>
   </template>
