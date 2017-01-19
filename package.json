@@ -1,6 +1,29 @@
 {
+  "name": "polyrender",
+  "version": "1.0.0",
+  "description": "Minimal server-side Polymer template renderer",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/straker/polyrender.git"
+  },
+  "keywords": [
+    "Polymer",
+    "server-side",
+    "render"
+  ],
+  "author": "Steven Lambert <steven@sklambert.com> (http://sklambert.com/)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/straker/polyrender/issues"
+  },
+  "homepage": "https://github.com/straker/polyrender#readme",
   "dependencies": {
     "cheerio": "^0.22.0",
     "htmlparser2": "^3.9.2"
-  }
+  },
+  "devDependencies": {}
 }
