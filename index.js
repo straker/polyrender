@@ -103,7 +103,8 @@ var polyrender = {
       str = str || '';
       var result = '';
 
-      str = str.replace(/\n/g, '\\\\n');
+      // escape newlines and double quotes (used for string concatenation)
+      str = str.replace(/\n/g, '\\\\n').replace(/"/g, '\\\\"');
       var splitStr = str.split(bindingRegex);
 
       for (var i = 0; i < splitStr.length; i += 3) {
@@ -294,6 +295,11 @@ var polyrender = {
 
           str += `' + (function(scope) {
             var source = context.parentChildrenSource;
+
+            if (!source) {
+              return '';
+            }
+
             ${(selectedDomSource ? selectedDomSource : '')}
 
             var template = scope.compile(source, true);
@@ -414,7 +420,7 @@ var polyrender = {
     parser.write(source);
     parser.end();
 
-    // console.log('\n\ncode:', code);
+    console.log('\n\ncode:', code);
     return eval(code).bind({
       getOuterHTML: htmlparser.DomUtils.getOuterHTML,
       compile: polyrender.compile,
@@ -454,21 +460,23 @@ var polyrender = {
   }
 };
 
-polyrender.registerElement('my-element', '<dom-module><template><button><content select=".content,p"></content></button></template></dom-module>');
+module.exports = polyrender;
 
-var template = polyrender.compile(`<dom-module>
-  <template>
-    <div>
-      <my-element>
-        <div>Hello World</div>
-        <div class="content">foobar</div>
-        <p>Hello</p>
-      </my-element>
-    </div>
-  </template>
-</dom-module>`);
+// polyrender.registerElement('my-element', '<dom-module><template><button><content select=".content,p"></content></button></template></dom-module>');
 
-console.log(template());
+// var template = polyrender.compile(`<dom-module>
+//   <template>
+//     <div>
+//       <my-element>
+//         <div>Hello World</div>
+//         <div class="content">foobar</div>
+//         <p>Hello</p>
+//       </my-element>
+//     </div>
+//   </template>
+// </dom-module>`);
+
+// console.log(template());
 
 // polyrender.registerElement('nested-element', '<div>{{test}}</div>', {
 //   test: 'hello world'
@@ -536,8 +544,6 @@ console.log(template());
   </template>
 </div>
 */
-
-module.exports = polyrender;
 
 // var fsPerson = fs.readFileSync(require('path').join(__dirname, 'assets/html/fs-person/fs-person.html'), 'utf-8');
 // var template = polyrender.compile(fsPerson);
